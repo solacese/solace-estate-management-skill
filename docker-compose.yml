@@ -1,0 +1,58 @@
+# Local development: Multi-broker test estate
+# Spins up 3 brokers to simulate a small edge-core estate.
+#
+# Usage:
+#   docker compose up -d
+#   export BROKER_1_USER=admin BROKER_1_PASS=admin
+#   export BROKER_2_USER=admin BROKER_2_PASS=admin
+#   export BROKER_3_USER=admin BROKER_3_PASS=admin
+#   npx tsx src/index.ts inventory
+
+version: "3.8"
+
+services:
+  # Core broker (simulates cloud-core)
+  core-broker:
+    image: solace/solace-pubsub-standard:latest
+    container_name: estate-core
+    hostname: core-broker
+    shm_size: 1g
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+    ports:
+      - "8080:8080"    # SEMP
+      - "55555:55555"  # SMF
+      - "1883:1883"    # MQTT
+      - "5672:5672"    # AMQP
+    restart: unless-stopped
+
+  # Edge broker 1 (simulates plant edge)
+  edge-broker-1:
+    image: solace/solace-pubsub-standard:latest
+    container_name: estate-edge-1
+    hostname: edge-broker-1
+    shm_size: 1g
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+    ports:
+      - "8081:8080"    # SEMP
+      - "55556:55555"  # SMF
+      - "1884:1883"    # MQTT
+    restart: unless-stopped
+
+  # Edge broker 2 (simulates second plant edge)
+  edge-broker-2:
+    image: solace/solace-pubsub-standard:latest
+    container_name: estate-edge-2
+    hostname: edge-broker-2
+    shm_size: 1g
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+    ports:
+      - "8082:8080"    # SEMP
+      - "55557:55555"  # SMF
+      - "1885:1883"    # MQTT
+    restart: unless-stopped

@@ -1,0 +1,110 @@
+# Solace Estate Management — Example Configuration
+#
+# Copy this file to config/estate.yaml and fill in your broker details.
+# Credentials come from environment variables — never hardcode them.
+
+estate:
+  name: "Acme Automotive Event Mesh"
+  poll_interval_seconds: 30
+
+brokers:
+  # Cloud core broker (Solace Cloud)
+  - id: cloud-core
+    display_name: "Cloud Core Broker"
+    semp_url: "https://mr-connection-abc123.messaging.solace.cloud:943"
+    vpns: ["production"]
+    auth:
+      mode: bearer
+      token_env: SOLACE_CLOUD_CORE_TOKEN
+    tls_reject_unauthorized: true
+    tags:
+      site: paris-cloud
+      region: EMEA
+      environment: production
+      role: core
+      owner: data-platform
+
+  # Edge broker at Plant A
+  - id: plant-a-edge
+    display_name: "Plant A Edge Broker"
+    semp_url: "http://10.1.1.50:8080"
+    vpns: ["default"]
+    auth:
+      mode: basic
+      username_env: PLANT_A_SEMP_USER
+      password_env: PLANT_A_SEMP_PASS
+    tls_reject_unauthorized: false
+    tags:
+      site: douai
+      region: EMEA
+      environment: production
+      role: edge
+      plant: "Plant A"
+      owner: manufacturing
+
+  # Edge broker at Plant B
+  - id: plant-b-edge
+    display_name: "Plant B Edge Broker"
+    semp_url: "http://10.2.1.50:8080"
+    vpns: ["default"]
+    auth:
+      mode: basic
+      username_env: PLANT_B_SEMP_USER
+      password_env: PLANT_B_SEMP_PASS
+    tls_reject_unauthorized: false
+    tags:
+      site: valladolid
+      region: EMEA
+      environment: production
+      role: edge
+      plant: "Plant B"
+      owner: manufacturing
+
+  # Vehicle IoT edge broker
+  - id: vehicle-iot-edge
+    display_name: "Vehicle IoT Edge Broker"
+    semp_url: "https://vehicle-iot.messaging.solace.cloud:943"
+    vpns: ["connected-vehicle"]
+    auth:
+      mode: bearer
+      token_env: VEHICLE_IOT_SEMP_TOKEN
+    tls_reject_unauthorized: true
+    tags:
+      site: paris-connected-services
+      region: EMEA
+      environment: production
+      role: edge
+      domain: connected-vehicle
+      owner: iot-platform
+
+  # Analytics cloud broker
+  - id: analytics-cloud
+    display_name: "Analytics Cloud Broker"
+    semp_url: "https://analytics.messaging.solace.cloud:943"
+    vpns: ["analytics"]
+    auth:
+      mode: bearer
+      token_env: ANALYTICS_SEMP_TOKEN
+    tls_reject_unauthorized: true
+    tags:
+      site: frankfurt-cloud
+      region: EMEA
+      environment: production
+      role: core
+      domain: analytics
+      owner: data-platform
+
+# Mesh links between brokers (for topology visualization)
+links:
+  - from: plant-a-edge
+    to: cloud-core
+    kind: dmr
+  - from: plant-b-edge
+    to: cloud-core
+    kind: dmr
+  - from: vehicle-iot-edge
+    to: cloud-core
+    kind: dmr
+  - from: cloud-core
+    to: analytics-cloud
+    kind: bridge

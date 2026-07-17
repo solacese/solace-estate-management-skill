@@ -1,0 +1,146 @@
+name: solace-estate-management
+description: >
+  Inventory, map, monitor, and report on a fleet of Solace PubSub+ brokers (a "broker estate").
+  Use this whenever someone needs to understand or operate more than a handful of Solace brokers,
+  including questions like "how many brokers do we have", "where is this VPN", "where does this
+  application connect", "which broker hosts this queue", "show me the topology", "which brokers
+  are hottest or silent", "who is consuming which data and how much", "are any brokers running
+  near capacity", or "is our security posture correct". Works on any estate, any broker type
+  (software, appliance, or Cloud), edge and central together. Strictly read-only and safe for production.
+tags:
+  - solace
+  - estate-management
+  - semp
+  - monitoring
+  - topology
+  - security
+  - chargeback
+examples:
+  - "How many brokers do we have?"
+  - "Where does the Orders application connect?"
+  - "Which broker hosts queue Q/manufacturing/events?"
+  - "Show me the topology across our estate"
+  - "Which brokers are hottest or silent?"
+  - "Who is consuming which data and how much?"
+  - "Are any brokers running near capacity?"
+  - "Is authentication enabled on all brokers?"
+  - "We have 50 brokers and no idea what is where"
+required_builtins:
+  - http_request
+
+instruction_content: |
+  # Solace Estate Management
+
+  ## What this is for
+
+  As a Solace deployment grows from a handful of brokers to dozens, teams lose track of what
+  exists and where it lives. This skill gives you the procedure and domain knowledge to build
+  that estate picture from data the brokers already expose via SEMP v2 Monitor, then answer
+  operational questions and produce inventory, topology, health, consumption, and security reports.
+
+  Everything here is read-only and safe to run against production.
+
+  ## When to use, and when not to
+
+  Use this skill when the task is about the fleet as a whole: taking inventory, locating a
+  resource across many brokers, drawing the topology, spotting hotspots or silent brokers,
+  attributing consumption for internal chargeback, checking for capacity and hygiene problems,
+  or auditing security posture.
+
+  Do not use it for deep single-broker configuration work, for anything that changes broker
+  state (this skill never writes), or for inspecting individual message payloads.
+
+  ## Core principle: aggregate first, topic-level only when justified
+
+  **Tier 1, SEMP v2 monitor (default).** Zero added load on the broker, safe on production.
+  Gives aggregate metrics and broker-computed rates at the broker, VPN, client, and queue level.
+  Always start here.
+
+  **Tier 2, distributed tracing via OpenTelemetry (opt-in, heavy).** The only way to get true
+  topic-level lineage and per-topic consumption. Emitting a trace event per message roughly
+  doubles the message volume on a broker, so the customer must run with 20-30% headroom.
+  Never enable it yourself. Recommend it only when the requirement genuinely needs topic-level
+  detail and the customer accepts the overhead.
+
+  ## The estate model
+
+  Drive everything from a single configuration and discover the rest at runtime.
+
+  Configuration is a list of brokers. Each broker has:
+  - Connection details: SEMP monitor base URL, VPN scope, credentials from environment.
+  - Metadata tags: site, plant, region, environment, business unit, owner, role.
+
+  Tags are the backbone. They let you roll everything up along dimensions the customer cares
+  about: "message rate by plant", "spool usage by region". A customer with 40 edge brokers
+  manages them by site and role, not by hostname.
+
+  From configuration, build a normalized model by discovery:
+  - Nodes: broker, VPN, client (application), queue.
+  - Edges: client publishes/subscribes, queue attracts topic, client binds to queue, broker mesh links.
+  - Give every node and edge a stable id. Deduplicate logical applications across brokers.
+
+  ## Workflows
+
+  ### 1. Estate inventory and audit
+  Enumerate every broker, then per broker enumerate VPNs, clients, queues. Roll counts up by
+  tag. Output an inventory table plus narrative of estate shape. Tier 1.
+
+  ### 2. Locate a resource
+  Search the discovered model across all brokers. Return exact broker, VPN, and connection
+  with tags. Example output: "Queue Q/orders/emea lives on broker prod-edge-07, VPN manufacturing,
+  tags: site=Sandouville, region=EMEA, env=prod."
+
+  ### 3. Topology map
+  Build the graph model, render at aggregate view (broker and VPN level with rates on edges).
+  Offer drill-down into single broker or application on demand. Feed to topology explorer. Tier 1.
+
+  ### 4. Health and hotspots
+  Surface outliers: hottest brokers, silent ones, spool nearing limits, VPNs near connection
+  limits, unhealthy mesh links, clients that recently dropped. Group by tag. Tier 1.
+
+  ### 5. Consumption and chargeback report
+  Attribute message and byte volume between providers and consumers over a period. Default to
+  single primary dimension (volume). Offer other dimensions only if asked. Tier 1 = client/queue
+  level attribution. Tier 2 = per-topic. Always state which tier the figures come from.
+
+  ### 6. Capacity and hygiene
+  Flag spool nearing limits, VPNs approaching connection/subscription limits, orphaned/idle
+  queues, mesh links down or lagging. Present as prioritized list with tag context. Tier 1.
+
+  ### 7. Security posture audit
+  For each broker, check authentication config, ACL default actions, connection limits, TLS
+  state, bridge permissions, session timeouts, and spool limits. Flag any broker with
+  `authenticationBasicType = "none"` or permissive ACL defaults. Tier 1.
+
+  ## SEMP v2 Monitor patterns
+
+  Read `references/semp-monitor.md` for full endpoint reference. Key patterns:
+  - Base: `GET {semp_url}/SEMP/v2/monitor/msgVpns/{vpn}/...`
+  - Pagination: follow `meta.paging.cursorQuery` until empty
+  - Field selection: `?select=field1,field2` to reduce payload
+  - Rate fields: read directly (e.g., `dataMessagesReceivedRate`), never diff counters
+  - Auth: Basic (`admin:password`) or Bearer (Cloud API token)
+
+  ## Security checks
+
+  Read `references/security-checks.md` for the full check list derived from security audit
+  research. These are the SEMP-queryable checks that detect the most common misconfigurations.
+
+  ## Chargeback model
+
+  Read `references/chargeback.md` for the simple attribution model. Keep it simple: single
+  primary dimension (volume), grouped by tag. Complex multi-factor formulas are hard to explain
+  and customers don't trust them.
+
+  ## Safety and constraints
+
+  - Read-only. Only SEMP v2 monitor API. Never call config or action endpoints.
+  - Credentials from environment. Never in source, output, or logs.
+  - Degrade gracefully. One failed broker must never abort the whole estate crawl.
+  - Never enable distributed tracing.
+  - No message payload inspection.
+
+references:
+  - name: semp-monitor.md
+  - name: chargeback.md
+  - name: security-checks.md
